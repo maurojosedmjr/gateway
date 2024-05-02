@@ -1,0 +1,7 @@
+{
+  "cnjokes": {
+    "target_api": "https://api.chucknorris.io/jokes/random",
+    "verbs": ["GET"],
+    "is_public": true
+  }
+}

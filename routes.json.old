@@ -1,0 +1,16 @@
+{
+  "1": {
+    "endpoint": "cnjoke",
+    "redirect_base": "https://api.chucknorris.io/",
+    "verbs": [
+      "GET"
+    ],
+    "config": {
+      "sub_routes": [
+        {
+          "route": "jokes/random"
+        }
+      ]
+    }
+  }
+}
