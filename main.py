@@ -1,8 +1,9 @@
+import re
 import pytz
 import logging
 
 from time import sleep
-from typing import Any, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from requests import Session, Response
 from datetime import datetime, timedelta
 
@@ -62,7 +63,9 @@ def call(request: Request):
     return call_http_url(request=request)
 
 
-async def make_request(request: Request, target_api: str, path: str = "") -> Tuple[int, Dict[str, Any]]:
+async def make_request(
+    request: Request, target_api: str, path: str = ""
+) -> Tuple[int, Dict[str, Any]]:
     retries: int = 0
     method = request.method
     url: str = target_api + path
@@ -97,14 +100,41 @@ async def make_request(request: Request, target_api: str, path: str = "") -> Tup
     return resp
 
 
-def is_valid_jwt_token(token: str, extras: Dict[str, Any] = {}) -> bool:
+def is_valid_jwt_token(token: str, extras: List[Callable] = []) -> bool:
+    """
+    More validactions cam be passed through extras argument.
+    The 'function' need make any validation using token, without prefix 'Bearer\s'.
+    ex:
+        def validate_token_alg(token: str) -> bool:
+            expected_alg: str = "HS256"
+
+            import jwt
+            try:
+                _token_header: Dict[str, Any] = jwt.get_unverified_header(token)
+            except:
+                return False
+            if _token_header.get("alg", "") != expected_alg:
+                return False
+            return True
+    Any function thar receive a str token argument and return a boolean value, should work fine.
+    """
+    has_match: Optional[re.Match] = re.search(
+        r"(^Bearer\s)?([\w-]*\.[\w-]*\.[\w-]*$)", token
+    )
+    if has_match is None:
+        return False
+
     import jwt
 
-    if token.startswith("Bearer"):
-        token = token.split(" ")[-1]
+    token = has_match.group(0)
 
-    token_header: Dict[str, Any] = jwt.get_unverified_header(token)
-    jwt.decode(token, algorithms=token_header.get("alg", "RS256"))
+    try:
+        jwt.get_unverified_header(token)
+    except:
+        return False
+
+    if extras:
+        return all((func(token) for func in extras))
 
     return True
 
@@ -114,6 +144,7 @@ endpoints: List[EndpointConfig] = load_routes("endpoints.json", "./")
 
 for endpoint_config in endpoints:
     print(endpoint_config)
+
     @fast_app.route(f"/{endpoint_config.endpoint}", methods=endpoint_config.verbs)
     async def interaction_handler(request: Request):
         breakpoint()
@@ -126,7 +157,9 @@ for endpoint_config in endpoints:
 
         path: str = request.url.path.strip(f"/{endpoint_config.endpoint}")
         try:
-            resp = make_request(request=request, target_api=endpoint_config.target_api, path=path)
+            resp = make_request(
+                request=request, target_api=endpoint_config.target_api, path=path
+            )
         except:
             return
         return resp
