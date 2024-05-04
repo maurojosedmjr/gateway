@@ -70,14 +70,15 @@ async def make_request(
     method = request.method
     url: str = target_api + path
     start_time: datetime = datetime.now().astimezone(pytz.UTC)
+    json_data = await request.json()
     breakpoint()
     while retries < 5:
         resp: Response = session.request(
             method=method,
             url=url,
-            params=request.query_params._dict,
-            # headers=dict(request.headers),
-            # data=request.body if request.body else None,
+            params=dict(request.query_params),
+            headers=dict(request.headers),
+            json=json_data or {},
             stream=True,
         )
         if (
@@ -103,7 +104,7 @@ async def make_request(
 def is_valid_jwt_token(token: str, extras: List[Callable] = []) -> bool:
     """
     More validactions cam be passed through extras argument.
-    The 'function' need make any validation using token, without prefix 'Bearer\s'.
+    The 'function' need make any validation using token, without prefix 'Bearer\\s'.
     ex:
         def validate_token_alg(token: str) -> bool:
             expected_alg: str = "HS256"
