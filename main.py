@@ -63,21 +63,24 @@ def call(request: Request):
     return call_http_url(request=request)
 
 
-async def make_request(
-    request: Request, target_api: str, path: str = ""
+def make_request(
+    request: Request, target_api: str, path: str = "", json_data: Dict[str, Any] = {}
 ) -> Tuple[int, Dict[str, Any]]:
     retries: int = 0
     method = request.method
     url: str = target_api + path
     start_time: datetime = datetime.now().astimezone(pytz.UTC)
-    json_data = await request.json()
     breakpoint()
+    headers = dict(request.headers)
+    if "localhost" in headers.get("host"):
+        del headers["host"]
+    params = dict(request.query_params)
     while retries < 5:
         resp: Response = session.request(
             method=method,
             url=url,
-            params=dict(request.query_params),
-            headers=dict(request.headers),
+            params=params,
+            headers=headers,
             json=json_data or {},
             stream=True,
         )
@@ -148,7 +151,6 @@ for endpoint_config in endpoints:
 
     @fast_app.route(f"/{endpoint_config.endpoint}", methods=endpoint_config.verbs)
     async def interaction_handler(request: Request):
-        breakpoint()
         if endpoint_config.is_public is False:
             try:
                 is_valid_jwt_token(request.headers.get("authorization"))
@@ -157,9 +159,15 @@ for endpoint_config in endpoints:
                 raise HTTPException(401, "InvalidToken")
 
         path: str = request.url.path.strip(f"/{endpoint_config.endpoint}")
+        json_data = {}
+        if request.headers.get("content-type") == "application/json":
+            json_data = await request.json()
         try:
             resp = make_request(
-                request=request, target_api=endpoint_config.target_api, path=path
+                request=request,
+                target_api=endpoint_config.target_api,
+                path=path,
+                json_data=json_data,
             )
         except:
             return
